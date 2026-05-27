@@ -1,6 +1,7 @@
 const WebSocket = require('ws');
 
-const wss = new WebSocket.Server({ port: 8080 });
+const PORT = process.env.PORT || 8080;
+const wss = new WebSocket.Server({ port: PORT });
 const clients = new Map(); // username -> ws
 
 wss.on('connection', (ws) => {
@@ -52,4 +53,4 @@ function broadcastPresence() {
     }
 }
 
-console.log('Signaling server running on ws://localhost:8080');
+console.log(`Signaling server running on port ${PORT}`);
