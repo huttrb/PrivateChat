@@ -1,56 +1,120 @@
 const WebSocket = require('ws');
 
 const PORT = process.env.PORT || 8080;
-const wss = new WebSocket.Server({ port: PORT });
-const clients = new Map(); // username -> ws
+const wss  = new WebSocket.Server({ port: PORT });
 
-wss.on('connection', (ws) => {
+const clients = new Map(); // username → ws
+const rooms   = new Map(); // roomId  → { id, name, creator, users: [] }
+
+wss.on('connection', ws => {
     let username = null;
+    let roomId   = null;
 
-    ws.on('message', (raw) => {
+    ws.on('message', raw => {
         let msg;
         try { msg = JSON.parse(raw); } catch { return; }
 
-        if (msg.type === 'register') {
-            // Close previous connection for this user if any
-            if (clients.has(msg.username)) {
-                const old = clients.get(msg.username);
-                old.username = null;
-                old.close();
-            }
-            username = msg.username;
-            clients.set(username, ws);
-            console.log(`[+] ${username} connected  (online: ${[...clients.keys()].join(', ')})`);
-            broadcastPresence();
-            return;
-        }
+        switch (msg.type) {
 
-        // Relay everything else to the target user
-        if (msg.target) {
-            const targetWs = clients.get(msg.target);
-            if (targetWs && targetWs.readyState === WebSocket.OPEN) {
-                targetWs.send(JSON.stringify({ ...msg, from: username }));
+            case 'register': {
+                const name = String(msg.username || '').trim().slice(0, 24);
+                if (!name) return;
+                if (clients.has(name)) {
+                    send(ws, { type: 'register-error', error: 'Ник уже занят' });
+                    return;
+                }
+                username = name;
+                clients.set(username, ws);
+                console.log(`[+] ${username} (online: ${clients.size})`);
+                send(ws, { type: 'registered', username });
+                send(ws, { type: 'room-list',  rooms: roomList() });
+                break;
+            }
+
+            case 'create-room': {
+                if (!username) return;
+                const name = String(msg.name || '').trim().slice(0, 40) || 'Комната';
+                const id   = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+                const room = { id, name, creator: username, users: [username] };
+                rooms.set(id, room);
+                roomId = id;
+                send(ws, { type: 'room-joined', room: dto(room) });
+                broadcast({ type: 'room-list', rooms: roomList() });
+                console.log(`[room+] "${name}" by ${username}`);
+                break;
+            }
+
+            case 'join-room': {
+                if (!username) return;
+                const room = rooms.get(msg.roomId);
+                if (!room) {
+                    send(ws, { type: 'join-error', error: 'Комната не найдена' });
+                    return;
+                }
+                if (room.users.length >= 2) {
+                    send(ws, { type: 'join-error', error: 'Комната заполнена' });
+                    return;
+                }
+                if (room.users.includes(username)) return;
+                room.users.push(username);
+                roomId = room.id;
+                const other = room.users.find(u => u !== username) || null;
+                send(ws, { type: 'room-joined', room: dto(room), partner: other });
+                if (other) sendTo(other, { type: 'user-joined', username });
+                broadcast({ type: 'room-list', rooms: roomList() });
+                break;
+            }
+
+            case 'leave-room': {
+                if (username && roomId) { leaveRoom(username, roomId); roomId = null; }
+                break;
+            }
+
+            default: {
+                if (msg.target) sendTo(msg.target, { ...msg, from: username });
             }
         }
     });
 
     ws.on('close', () => {
-        if (username && clients.get(username) === ws) {
+        if (username && roomId) leaveRoom(username, roomId);
+        if (username) {
             clients.delete(username);
-            console.log(`[-] ${username} disconnected (online: ${[...clients.keys()].join(', ')})`);
-            broadcastPresence();
+            console.log(`[-] ${username} (online: ${clients.size})`);
         }
     });
 
-    ws.on('error', (err) => console.error('WS error:', err.message));
+    ws.on('error', err => console.error('WS error:', err.message));
 });
 
-function broadcastPresence() {
-    const online = [...clients.keys()];
-    const msg = JSON.stringify({ type: 'presence', online });
-    for (const clientWs of clients.values()) {
-        if (clientWs.readyState === WebSocket.OPEN) clientWs.send(msg);
+function leaveRoom(user, rid) {
+    const room = rooms.get(rid);
+    if (!room) return;
+    room.users = room.users.filter(u => u !== user);
+    const other = room.users[0];
+    sendTo(other, { type: 'user-left', username: user });
+    if (room.users.length === 0) {
+        rooms.delete(rid);
+        console.log(`[room-] "${room.name}"`);
     }
+    broadcast({ type: 'room-list', rooms: roomList() });
 }
 
-console.log(`Signaling server running on port ${PORT}`);
+function dto(room) {
+    return { id: room.id, name: room.name, creator: room.creator, count: room.users.length };
+}
+function roomList() { return [...rooms.values()].map(dto); }
+
+function send(ws, obj) {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+}
+function sendTo(username, obj) {
+    if (username) send(clients.get(username), obj);
+}
+function broadcast(obj) {
+    const s = JSON.stringify(obj);
+    for (const ws of clients.values())
+        if (ws.readyState === WebSocket.OPEN) ws.send(s);
+}
+
+console.log(`Server on :${PORT}`);
