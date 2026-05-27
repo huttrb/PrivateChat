@@ -3,10 +3,23 @@ const WebSocket = require('ws');
 const PORT = process.env.PORT || 8080;
 const wss  = new WebSocket.Server({ port: PORT });
 
+// Detect dead connections (mobile tab close, network drop, etc.)
+const heartbeat = setInterval(() => {
+    for (const ws of wss.clients) {
+        if (!ws.isAlive) { ws.terminate(); continue; }
+        ws.isAlive = false;
+        ws.ping();
+    }
+}, 20000);
+wss.on('close', () => clearInterval(heartbeat));
+
 const clients = new Map(); // username → ws
 const rooms   = new Map(); // roomId  → { id, name, creator, users: [] }
 
 wss.on('connection', ws => {
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
+
     let username = null;
     let roomId   = null;
 
