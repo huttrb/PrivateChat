@@ -1,0 +1,12 @@
+{
+  "name": "privatechat",
+  "version": "1.0.0",
+  "description": "Minimal two-person private chat with WebRTC",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.17.0"
+  }
+}
