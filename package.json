@@ -1,18 +1,12 @@
 {
-  "name": "tp",
-  "version": "2.0.0",
-  "description": "TP Messenger",
+  "name": "privatechat",
+  "version": "1.0.0",
+  "description": "Minimal two-person private chat with WebRTC",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "engines": {
-    "node": "20.x"
-  },
   "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "pg": "^8.11.3",
-    "express": "^4.18.2",
     "ws": "^8.17.0"
   }
 }
