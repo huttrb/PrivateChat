@@ -15,7 +15,7 @@ const pool = new Pool({
     database: process.env.DB_NAME,
     user:     process.env.DB_USER,
     password: process.env.DB_PASS,
-    ssl:      { rejectUnauthorized: false },
+    ssl:      false,
 });
 
 const q = (sql, params) => pool.query(sql, params);
