@@ -369,6 +369,9 @@ wss.on('connection', ws => {
             ws._nick   = u.nick;
             wsUsers.set(u.nick, ws);
             wsSend(ws, { type: 'auth-ok', user: { id: u.id, nick: u.nick, email: u.email, avatar: u.avatar } });
+            for (const [, ows] of wsUsers) {
+                if (ows !== ws) wsSend(ows, { type: 'user-status', id: u.id, nick: u.nick, online: true });
+            }
             broadcastUserList();
             return;
         }
@@ -408,6 +411,9 @@ wss.on('connection', ws => {
     ws.on('close', () => {
         if (user && wsUsers.get(user.nick) === ws) {
             wsUsers.delete(user.nick);
+            for (const [, ows] of wsUsers) {
+                wsSend(ows, { type: 'user-status', id: user.id, nick: user.nick, online: false });
+            }
             broadcastUserList();
         }
     });
