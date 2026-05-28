@@ -56,11 +56,12 @@ async function initDB() {
 
 // ── Mail ──────────────────────────────────────────────────────────────────────
 function sendMail(to, subject, code) {
+    if (!process.env.MAILER_URL) { console.error('MAILER_URL not set'); return Promise.resolve(); }
     return fetch(process.env.MAILER_URL, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ to, subject, code, secret: process.env.MAILER_SECRET }),
-    }).then(r => r.json());
+    }).then(r => r.json()).then(d => { console.log('mailer:', d); return d; });
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
