@@ -5,8 +5,7 @@ const WebSocket  = require('ws');
 const { Pool }   = require('pg');
 const bcrypt     = require('bcryptjs');
 const crypto     = require('crypto');
-const nodemailer = require('nodemailer');
-const path       = require('path');
+const path = require('path');
 
 // ── Database ──────────────────────────────────────────────────────────────────
 const pool = new Pool({
@@ -56,27 +55,12 @@ async function initDB() {
 }
 
 // ── Mail ──────────────────────────────────────────────────────────────────────
-const mailer = nodemailer.createTransport({
-    sendmail: true,
-    newline:  'unix',
-    path:     '/usr/sbin/sendmail',
-});
-
 function sendMail(to, subject, code) {
-    return mailer.sendMail({
-        from: '"TP" <no-reply@tp.huttrb.ru>',
-        to,
-        subject,
-        html: `
-          <div style="font-family:system-ui,sans-serif;max-width:420px;margin:0 auto;padding:36px 24px;background:#09090f;color:#e2e4ef">
-            <h2 style="color:#7c6af7;margin:0 0 16px;font-size:22px">TP</h2>
-            <p style="color:#888aaa;margin:0 0 24px;font-size:15px">${subject}</p>
-            <div style="background:#1e1e35;border:1px solid #7c6af7;border-radius:14px;padding:24px;text-align:center;margin-bottom:20px">
-              <span style="font-size:34px;font-weight:900;letter-spacing:10px;color:#9d8ff8">${code}</span>
-            </div>
-            <p style="color:#636880;font-size:12px;margin:0">Код действителен 15 минут. Не сообщайте его никому.</p>
-          </div>`,
-    });
+    return fetch(process.env.MAILER_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ to, subject, code, secret: process.env.MAILER_SECRET }),
+    }).then(r => r.json());
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
