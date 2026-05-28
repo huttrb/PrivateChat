@@ -17,6 +17,7 @@ const pool = new Pool({
     ssl:      false,
 });
 
+pool.on('connect', c => c.query("SET timezone='UTC'"));
 const q = (sql, params) => pool.query(sql, params);
 
 async function initDB() {
@@ -160,6 +161,22 @@ app.post('/api/auth/verify', async (req, res) => {
         if (!r.rows[0]) return res.status(400).json({ error: 'Неверный или устаревший код' });
         await q('UPDATE users SET verified=1 WHERE email=$1', [email]);
         await q('DELETE FROM email_codes WHERE email=$1 AND type=$2', [email, 'verify_reg']);
+        res.json({ ok: true });
+    } catch (e) { console.error(e); res.status(500).json({ error: 'Ошибка сервера' }); }
+});
+
+app.post('/api/auth/resend-code', async (req, res) => {
+    try {
+        const email = req.body?.email?.trim().toLowerCase();
+        if (!email) return res.status(400).json({ error: 'Email обязателен' });
+        const user = (await q('SELECT id FROM users WHERE email=$1 AND verified=0', [email])).rows[0];
+        if (!user) return res.status(400).json({ error: 'Email не найден или уже подтверждён' });
+        const code    = genCode();
+        const expires = new Date(Date.now() + 15 * 60e3);
+        await q('DELETE FROM email_codes WHERE email=$1 AND type=$2', [email, 'verify_reg']);
+        await q('INSERT INTO email_codes (email,code,type,expires_at) VALUES($1,$2,$3,$4)',
+            [email, code, 'verify_reg', expires]);
+        sendMail(email, 'Код подтверждения регистрации', code).catch(console.error);
         res.json({ ok: true });
     } catch (e) { console.error(e); res.status(500).json({ error: 'Ошибка сервера' }); }
 });
