@@ -334,7 +334,7 @@ const heartbeat = setInterval(() => {
         ws.isAlive = false;
         ws.ping();
     }
-}, 20000);
+}, 8000);
 wss.on('close', () => clearInterval(heartbeat));
 
 function wsSend(ws, obj)     { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); }
@@ -402,6 +402,14 @@ wss.on('connection', ws => {
             }
             case 'typing':
                 wsSendTo(msg.target, { type: 'typing', from: user.nick });
+                break;
+            case 'offline':
+                if (wsUsers.get(user.nick) === ws) {
+                    wsUsers.delete(user.nick);
+                    for (const [, ows] of wsUsers)
+                        wsSend(ows, { type: 'user-status', id: user.id, nick: user.nick, online: false });
+                    broadcastUserList();
+                }
                 break;
             default:
                 if (msg.target) wsSendTo(msg.target, { ...msg, from: user.nick });
