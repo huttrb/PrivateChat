@@ -1,12 +1,16 @@
 {
-  "name": "privatechat",
-  "version": "1.0.0",
-  "description": "Minimal two-person private chat with WebRTC",
+  "name": "tp",
+  "version": "2.0.0",
+  "description": "TP Messenger",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^9.4.3",
+    "express": "^4.18.2",
+    "nodemailer": "^6.9.13",
     "ws": "^8.17.0"
   }
 }
