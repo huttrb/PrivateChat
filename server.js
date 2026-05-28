@@ -123,13 +123,19 @@ app.post('/api/auth/register', async (req, res) => {
             return res.status(400).json({ error: 'Ник минимум 2 символа' });
         if (password.length < 6)
             return res.status(400).json({ error: 'Пароль минимум 6 символов' });
-        if ((await q('SELECT id FROM users WHERE email=$1', [email])).rows[0])
-            return res.status(400).json({ error: 'Email уже зарегистрирован' });
-        if ((await q('SELECT id FROM users WHERE nick=$1', [nick])).rows[0])
+        const existingEmail = (await q('SELECT id, verified FROM users WHERE email=$1', [email])).rows[0];
+        if (existingEmail?.verified) return res.status(400).json({ error: 'Email уже зарегистрирован' });
+
+        const existingNick = (await q('SELECT id, verified FROM users WHERE nick=$1', [nick])).rows[0];
+        if (existingNick && (existingNick.verified || existingNick.id !== existingEmail?.id))
             return res.status(400).json({ error: 'Ник уже занят' });
 
         const hash = await bcrypt.hash(password, 10);
-        await q('INSERT INTO users (email,nick,password_hash) VALUES($1,$2,$3)', [email, nick, hash]);
+        if (existingEmail) {
+            await q('UPDATE users SET nick=$1, password_hash=$2 WHERE email=$3', [nick, hash, email]);
+        } else {
+            await q('INSERT INTO users (email,nick,password_hash) VALUES($1,$2,$3)', [email, nick, hash]);
+        }
 
         const code    = genCode();
         const expires = new Date(Date.now() + 15 * 60e3);
