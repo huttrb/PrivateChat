@@ -32,8 +32,15 @@ function expressTurn() {
 async function buildIceServers() {
     const list = [...ICE_STUN];
     const et = expressTurn();
-    if (et) list.push(et);
-    // Metered: apiKey зашит в URL и остаётся на сервере; клиенту уходят только выданные креды.
+    if (et) {
+        // ExpressTURN рабочий — используем только его как TURN, Metered не трогаем,
+        // чтобы не жечь его quota (браузер не уважает порядок массива и может выбрать
+        // relay любого из переданных TURN-серверов).
+        list.push(et);
+        return list;
+    }
+    // Фолбэк: Metered только когда ExpressTURN не сконфигурирован/недоступен.
+    // apiKey зашит в URL и остаётся на сервере; клиенту уходят только выданные креды.
     if (process.env.METERED_URL && typeof fetch === 'function') {
         try {
             const res = await fetch(process.env.METERED_URL, { cache: 'no-store' });
