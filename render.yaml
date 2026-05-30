@@ -8,3 +8,12 @@ services:
     envVars:
       - key: PORT
         value: 10000
+      # Значения задаются в дашборде Render (Environment), НЕ в этом файле.
+      - key: METERED_URL
+        sync: false
+      - key: EXPRESSTURN_USERNAME
+        sync: false
+      - key: EXPRESSTURN_CREDENTIAL
+        sync: false
+      - key: EXPRESSTURN_URLS
+        sync: false

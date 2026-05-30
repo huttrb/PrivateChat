@@ -16,6 +16,39 @@ wss.on('close', () => clearInterval(heartbeat));
 const clients = new Map(); // username → ws
 const rooms   = new Map(); // roomId  → { id, name, creator, users: [] }
 
+// ── ICE-серверы: секреты живут в переменных окружения, а не в клиенте ──
+const ICE_STUN = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+];
+function expressTurn() {
+    const { EXPRESSTURN_USERNAME, EXPRESSTURN_CREDENTIAL } = process.env;
+    if (!EXPRESSTURN_USERNAME || !EXPRESSTURN_CREDENTIAL) return null;
+    const urls = (process.env.EXPRESSTURN_URLS ||
+        'turn:free.expressturn.com:3478,turn:free.expressturn.com:3478?transport=tcp')
+        .split(',').map(s => s.trim()).filter(Boolean);
+    return { urls, username: EXPRESSTURN_USERNAME, credential: EXPRESSTURN_CREDENTIAL };
+}
+async function buildIceServers() {
+    const list = [...ICE_STUN];
+    const et = expressTurn();
+    if (et) list.push(et);
+    // Metered: apiKey зашит в URL и остаётся на сервере; клиенту уходят только выданные креды.
+    if (process.env.METERED_URL && typeof fetch === 'function') {
+        try {
+            const res = await fetch(process.env.METERED_URL, { cache: 'no-store' });
+            if (res.ok) {
+                const m = await res.json();
+                if (Array.isArray(m)) list.push(...m);
+            }
+        } catch (e) { console.warn('Metered недоступен:', e.message); }
+    }
+    return list;
+}
+async function sendIce(ws) {
+    send(ws, { type: 'ice-servers', iceServers: await buildIceServers() });
+}
+
 wss.on('connection', ws => {
     ws.isAlive = true;
     ws.on('pong', () => { ws.isAlive = true; });
@@ -41,6 +74,12 @@ wss.on('connection', ws => {
                 console.log(`[+] ${username} (online: ${clients.size})`);
                 send(ws, { type: 'registered', username });
                 send(ws, { type: 'room-list',  rooms: roomList() });
+                sendIce(ws);
+                break;
+            }
+
+            case 'get-ice': {
+                sendIce(ws);
                 break;
             }
 
